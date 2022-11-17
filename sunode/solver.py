@@ -657,7 +657,7 @@ class AdjointSolver:
 
             y_out[i, :] = state_data
 
-    def solve_backward(self, t0, tend, tvals, grads, grad_out, lamda_out,
+    def solve_backward(self, t0, tend, tvals, grads, grad_out, lamda_out, lamda0 = 0,
                        lamda_all_out=None, quad_all_out=None, max_retries=50):
         CVodeReInitB = lib.CVodeReInitB
         CVodeQuadReInitB = lib.CVodeQuadReInitB
@@ -677,7 +677,7 @@ class AdjointSolver:
         quad_out_data = self._quad_buffer_out.data
         quad_out_c_ptr = self._quad_buffer_out.c_ptr
 
-        state_data[:] = 0
+        state_data[:] = lamda0
         quad_data[:] = 0
         quad_out_data[:] = 0
 
@@ -686,9 +686,11 @@ class AdjointSolver:
 
         ts = [t0] + list(tvals[::-1]) + [tend]
         t_intervals = zip(ts[1:], ts[:-1])
-        grads = [None] + list(grads)
+        grads = list(grads)
 
         for i, ((t_lower, t_upper), grad) in enumerate(zip(t_intervals, reversed(grads))):
+            state_data[:] -= grad
+
             if t_lower < t_upper:
                 check(CVodeReInitB(ode, odeB, t_upper, state_c_ptr))
                 check(CVodeQuadReInitB(ode, odeB, quad_c_ptr))
@@ -709,13 +711,12 @@ class AdjointSolver:
                 quad_data[:] = quad_out_data[:]
                 assert time_p[0] == t_lower, (time_p[0], t_lower)
 
-            if grad is not None:
-                state_data[:] -= grad
+
 
                 if lamda_all_out is not None:
                     lamda_all_out[-i, :] = state_data
                 if quad_all_out is not None:
                     quad_all_out[-i, :] = quad_data
-
+        state_data[:] -= grads[0]
         grad_out[:] = quad_out_data
         lamda_out[:] = state_data
