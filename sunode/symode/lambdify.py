@@ -53,6 +53,7 @@ class LambdifyAST:
         imports = ast.parse(textwrap.dedent(
             """
             import numba
+            import numba_scipy
             import numpy
             import scipy
             
